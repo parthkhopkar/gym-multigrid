@@ -44,41 +44,11 @@ class PPOAgent():
         self.model = PPOModel(self.num_inputs, self.num_outputs, self.hidden_sizes)
         self.model.build(input_shape=(None, self.num_inputs))
         self.model.summary()
-        # self.critic_network = self._build_critic_network()
-        # self.actor_network = self._build_actor_network()
         self.optimizer = keras.optimizers.Adam(learning_rate=self.LR)
 
         # Some checks
         if self.BUFFER_SIZE % self.TRAINING_BATCH_SIZE != 0:
             print("WARNING: Buffer size is not divisible by batch size. All collected trajectories will not be used during training")
-
-    def _build_critic_network(self):
-        critic_network = keras.Sequential(name='critic_network')
-        critic_network.add(Input(shape=(self.num_inputs, )))
-        for i, size in enumerate(self.hidden_sizes):
-            critic_network.add(Dense(size, activation='relu', name=f'critic_dense_{i}'))
-        critic_network.add(Dense(1))
-
-        # TODO Compile critic
-        # critic_network.compile()
-
-        critic_network.summary()
-
-        return critic_network
-
-    def _build_actor_network(self):
-        actor_network = keras.Sequential(name='actor_network')
-        actor_network.add(Input(shape=(self.num_inputs, )))
-        for i, size in enumerate(self.hidden_sizes):
-            actor_network.add(Dense(size, activation='relu', name=f'actor_dense_{i}'))
-        actor_network.add(Dense(self.num_outputs))
-
-        # TODO Compile actor
-        # actor_network.compile()
-
-        actor_network.summary()
-
-        return actor_network
 
     def get_action(self, obs):
         # TODO Return most likely action if not training
