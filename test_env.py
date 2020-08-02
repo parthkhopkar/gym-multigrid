@@ -1,10 +1,11 @@
 import gym
 import time
 from gym.envs.registration import register
+from gym_multigrid.envs import *
 import argparse
 
 parser = argparse.ArgumentParser(description=None)
-parser.add_argument('-e', '--env', default='soccer', type=str)
+parser.add_argument('-e', '--env', default='empty', type=str)
 
 args = parser.parse_args()
 
@@ -17,12 +18,16 @@ def main():
         )
         env = gym.make('multigrid-soccer-v0')
 
-    else:
+    elif args.env == 'collect_game':
         register(
             id='multigrid-collect-v0',
             entry_point='gym_multigrid.envs:CollectGame4HEnv10x10N2',
         )
         env = gym.make('multigrid-collect-v0')
+
+    else:
+        env = gym.make('multigrid-empty-v0')
+
 
     _ = env.reset()
 
@@ -33,9 +38,8 @@ def main():
         time.sleep(0.1)
 
         ac = [env.action_space.sample() for _ in range(nb_agents)]
-
-        obs, _, done, _ = env.step(ac)
-
+        obs, rewards, done, _ = env.step(ac)
+        print(obs[0].shape)
         if done:
             break
 

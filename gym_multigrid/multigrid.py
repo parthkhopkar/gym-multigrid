@@ -55,7 +55,7 @@ class World:
         'lava': 9,
         'agent': 10,
         'objgoal': 11,
-        'switch': 12
+        'switch': 12,
     }
     IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
 
@@ -75,11 +75,21 @@ class SmallWorld:
 
     IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
 
+    # Currently added all objects even to SmallWorld
     OBJECT_TO_IDX = {
         'unseen': 0,
         'empty': 1,
         'wall': 2,
-        'agent': 3
+        'floor': 3,
+        'door': 4,
+        'key': 5,
+        'ball': 6,
+        'box': 7,
+        'goal': 8,
+        'lava': 9,
+        'agent': 10,
+        'objgoal': 11,
+        'switch': 12,
     }
 
     IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
@@ -184,12 +194,32 @@ class Goal(WorldObj):
             super().__init__(world, 'goal', world.IDX_TO_COLOR[color])
         self.index = index
         self.reward = reward
+        self.is_occupied = False
 
     def can_overlap(self):
-        return True
+        return not self.is_occupied
 
     def render(self, img):
         fill_coords(img, point_in_rect(0, 1, 0, 1), COLORS[self.color])
+
+    def toggle(self):
+        self.is_occupied = True
+        self.color = 'red'
+
+    def encode(self, world, current_agent=False):
+        """Encode the a description of this object as a 3-tuple of integers"""
+
+        # State, 0: free, 1: occupied
+        if self.is_occupied:
+            state = 1
+        else:
+            state = 0
+
+        if world.encode_dim <=3:
+            return (world.OBJECT_TO_IDX[self.type], world.COLOR_TO_IDX[self.color], state)
+        else:
+            return (world.OBJECT_TO_IDX[self.type], world.COLOR_TO_IDX[self.color], state, 0, 0, 0)
+
 
 class Switch(WorldObj):
     def __init__(self, world):
@@ -967,6 +997,10 @@ class MultiGridEnv(gym.Env):
         for a in self.agents:
             a.carrying = None
 
+        # Make sure all agents are active at start of episode
+        for a in self.agents:
+            a.terminated = False
+
         # Step count since episode start
         self.step_count = 0
 
@@ -1064,6 +1098,9 @@ class MultiGridEnv(gym.Env):
         pass
 
     def _handle_switch(self, i, rewards, fwd_pos, fwd_cell):
+        pass
+
+    def _handle_occupy_goal(self, i, rewards, fwd_pos, fwd_cell):
         pass
 
     def _reward(self, current_agent, rewards, reward=1):
@@ -1258,7 +1295,7 @@ class MultiGridEnv(gym.Env):
 
             # Get the position in front of the agent
             fwd_pos = self.agents[i].front_pos
-
+            
             # Get the contents of the cell in front of the agent
             fwd_cell = self.grid.get(*fwd_pos)
 
@@ -1275,9 +1312,8 @@ class MultiGridEnv(gym.Env):
             # Move forward
             elif actions[i] == self.actions.forward:
                 if fwd_cell is not None:
-                    if fwd_cell.type == 'goal':
-                        done = True
-                        self._reward(i, rewards, 1)
+                    if fwd_cell.type == 'goal' and fwd_cell.can_overlap():
+                        self._handle_occupy_goal(i, rewards, fwd_pos, fwd_cell)
                     elif fwd_cell.type == 'switch':
                         self._handle_switch(i, rewards, fwd_pos, fwd_cell)
                 elif fwd_cell is None or fwd_cell.can_overlap():
@@ -1311,13 +1347,16 @@ class MultiGridEnv(gym.Env):
 
         if self.step_count >= self.max_steps:
             done = True
+        
+        if all(agent.terminated==True for agent in self.agents):
+            done = True
 
         if self.partial_obs:
             obs = self.gen_obs()
         else:
             obs = [self.grid.encode_for_agents(self.agents[i].pos) for i in range(len(actions))]
 
-        obs=[self.objects.normalize_obs*ob for ob in obs]
+        # obs=[self.objects.normalize_obs*ob for ob in obs]
 
         return obs, rewards, done, {}
 
@@ -1358,10 +1397,10 @@ class MultiGridEnv(gym.Env):
         """
 
         grids, vis_masks = self.gen_obs_grid()
-
+        # print('Grids', grids, 'vis_masks', vis_masks)
         # Encode the partially observable view into a numpy array
         obs = [grid.encode_for_agents(self.objects, [grid.width // 2, grid.height - 1], vis_mask) for grid, vis_mask in zip(grids, vis_masks)]
-
+        # print(np.array(obs).shape, end='\n\n')
         return obs
 
     def get_obs_render(self, obs, tile_size=TILE_PIXELS // 2):
